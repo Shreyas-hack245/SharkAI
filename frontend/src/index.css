@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-shark-700;
+  }
+  body {
+    @apply bg-shark-950 text-shark-100 antialiased;
+  }
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-shark-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-shark-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-shark-500;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-shark-900 border border-shark-700 rounded-lg;
+  }
+  .btn-primary {
+    @apply px-4 py-2 bg-shark-accent/20 text-shark-accent border border-shark-accent/30
+           rounded-md hover:bg-shark-accent/30 transition-colors font-medium text-sm;
+  }
+  .btn-secondary {
+    @apply px-4 py-2 bg-shark-800 text-shark-200 border border-shark-600
+           rounded-md hover:bg-shark-700 transition-colors font-medium text-sm;
+  }
+  .input-field {
+    @apply w-full px-3 py-2 bg-shark-800 border border-shark-600 rounded-md
+           text-shark-100 placeholder-shark-400 focus:outline-none focus:border-shark-accent/50
+           font-mono text-sm;
+  }
+  .severity-high {
+    @apply text-shark-danger;
+  }
+  .severity-medium {
+    @apply text-shark-warning;
+  }
+  .severity-low {
+    @apply text-yellow-300;
+  }
+  .severity-info {
+    @apply text-shark-300;
+  }
+}
