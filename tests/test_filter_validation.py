@@ -1,5 +1,5 @@
 import pytest
-from app.core.security import validate_display_filter
+from app.core.security import sanitize_path, validate_display_filter
 
 
 class TestFilterValidation:
@@ -42,3 +42,15 @@ class TestFilterValidation:
     def test_too_long_filter(self):
         valid, err = validate_display_filter("a" * 3000)
         assert valid is False
+
+    def test_rejects_unknown_field(self):
+        valid, err = validate_display_filter("tcp.payload == secret")
+        assert valid is False
+
+    def test_rejects_incomplete_expression(self):
+        valid, err = validate_display_filter("ip.src == 10.10.10.5 &&")
+        assert valid is False
+
+    def test_path_prefix_is_not_treated_as_a_child(self, tmp_path):
+        with pytest.raises(Exception):
+            sanitize_path(tmp_path / "captures", "../captures-other/capture.pcap")

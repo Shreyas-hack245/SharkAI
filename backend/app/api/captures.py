@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.security import save_upload_file, safe_capture_id
+from app.core.security import cleanup_directory, save_upload_file, safe_capture_id, validate_capture_file
 from app.database.models import Capture
 from app.database.session import get_db, async_session
 from app.models.schemas import CaptureProgress, CaptureSummary, CaptureUploadResponse
@@ -31,7 +31,14 @@ async def upload_capture(
     capture_dir.mkdir(parents=True, exist_ok=True)
 
     dest = capture_dir / (file.filename or "capture.pcap")
-    file_size = await save_upload_file(file, dest, settings)
+    try:
+        file_size = await save_upload_file(file, dest, settings)
+        validate_capture_file(dest)
+    except Exception:
+        # The directory was generated for this upload, so a failed validation can
+        # be safely discarded instead of retaining attacker-controlled data.
+        cleanup_directory(capture_dir)
+        raise
 
     capture = Capture(
         id=capture_id,

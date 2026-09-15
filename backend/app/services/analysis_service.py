@@ -1,13 +1,14 @@
 """Analysis service orchestrating all analyzers."""
 
 import asyncio
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -283,8 +284,9 @@ class AnalysisService:
             )
 
         if display_filter:
-            proto = display_filter.strip().lower()
-            query = query.where(Packet.protocol.ilike(f"%{proto}%"))
+            filter_clause = self._packet_filter_clause(display_filter)
+            if filter_clause is not None:
+                query = query.where(filter_clause)
 
         count_query = select(func.count()).select_from(query.subquery())
         total = (await db.execute(count_query)).scalar() or 0
@@ -294,6 +296,41 @@ class AnalysisService:
         result = await db.execute(query)
         packets = result.scalars().all()
         return packets, total
+
+    @staticmethod
+    def _packet_filter_clause(display_filter: str):
+        """Map the documented filter subset to indexed packet metadata.
+
+        More specialised filters are used by tshark within the analysis tools;
+        this mapping keeps the paginated packet table fast without pretending a
+        filter was applied when its indexed fields are unavailable.
+        """
+        expr = display_filter.strip()
+        protocol = expr.lower()
+        if protocol in {"tcp", "udp", "http", "dns", "icmp", "tls", "ssl", "ftp", "smtp", "arp", "sctp"}:
+            return Packet.protocol.ilike(protocol)
+
+        match = re.fullmatch(r"(ip\.(?:addr|src|dst)|ipv6\.(?:addr|src|dst)|http\.request\.method|http\.host|http\.request\.uri|dns\.qry\.name)\s*(==|!=|contains|matches)\s*(.+)", expr, re.IGNORECASE)
+        if not match:
+            return None
+        field, operator, value = match.groups()
+        value = value.strip().strip('"\'')
+        field = field.lower()
+        if field.endswith(".src"):
+            column = Packet.src
+        elif field.endswith(".dst"):
+            column = Packet.dst
+        elif field.endswith(".addr"):
+            clause = or_(Packet.src == value, Packet.dst == value)
+            return ~clause if operator == "!=" else clause
+        else:
+            column = Packet.info
+
+        if operator == "==":
+            return column == value if field.endswith((".src", ".dst")) else column.ilike(f"%{value}%")
+        if operator == "!=":
+            return column != value if field.endswith((".src", ".dst")) else ~column.ilike(f"%{value}%")
+        return column.ilike(f"%{value}%")
 
     async def get_packet_detail(self, pcap_path: str, frame_number: int) -> dict:
         return await asyncio.to_thread(

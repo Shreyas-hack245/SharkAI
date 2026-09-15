@@ -13,6 +13,19 @@ ALLOWED_FILTER_FIELDS = {
     "tls", "ssl", "ftp", "smtp", "arp", "sctp",
 }
 
+# This intentionally supports a useful, auditable subset of display filters.  The
+# same expression may be handed to tshark by analysis tools, so accepting arbitrary
+# token sequences here would undermine the command allowlist.
+SUPPORTED_FILTER_FIELDS = {
+    "frame.number", "frame.len",
+    "ip.addr", "ip.src", "ip.dst",
+    "ipv6.addr", "ipv6.src", "ipv6.dst",
+    "tcp.port", "tcp.srcport", "tcp.dstport", "tcp.stream",
+    "udp.port", "udp.srcport", "udp.dstport",
+    "http.request.method", "http.host", "http.request.uri",
+    "dns.qry.name", "dns.qry.type", "dns.flags.rcode",
+}
+
 ALLOWED_FILTER_OPERATORS = {"==", "!=", ">", "<", ">=", "<=", "contains", "matches"}
 
 DANGEROUS_PATTERNS = [
@@ -48,7 +61,9 @@ def validate_upload_size(size: int, max_bytes: int) -> None:
 def sanitize_path(base: Path, user_path: str) -> Path:
     """Prevent path traversal attacks."""
     resolved = (base / user_path).resolve()
-    if not str(resolved).startswith(str(base.resolve())):
+    try:
+        resolved.relative_to(base.resolve())
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid path")
     return resolved
 
@@ -67,16 +82,74 @@ def validate_display_filter(filter_expr: str) -> tuple[bool, Optional[str]]:
     if len(expr) > 2000:
         return False, "Filter expression too long"
 
-    # Allow simple protocol names
-    if re.match(r"^[a-zA-Z][a-zA-Z0-9_.]*$", expr):
-        return True, None
+    # A bare protocol is the most common filter (for example: tcp, http, dns).
+    if re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", expr):
+        if expr.lower() in ALLOWED_FILTER_FIELDS:
+            return True, None
+        return False, f"Unsupported protocol '{expr}'"
 
-    # Validate compound expressions
-    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_.]*|==|!=|>=|<=|>|<|&&|\|\||contains|matches|\(|\)|\"[^\"]*\"|'[^']*'|\d+\.?\d*", expr)
-    if not tokens:
-        return False, "Invalid filter syntax"
+    token_re = re.compile(
+        r'\s*(>=|<=|==|!=|&&|\|\||>|<|contains|matches|\(|\)|'
+        r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|'
+        r'[A-Za-z][A-Za-z0-9_.:-]*|\d+(?:\.\d+)*)'
+    )
+    tokens: list[str] = []
+    position = 0
+    while position < len(expr):
+        match = token_re.match(expr, position)
+        if not match:
+            return False, "Invalid filter syntax"
+        tokens.append(match.group(1))
+        position = match.end()
 
+    index = 0
+    expecting_clause = True
+    paren_depth = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if expecting_clause:
+            if token == "(":
+                paren_depth += 1
+                index += 1
+                continue
+            if token not in SUPPORTED_FILTER_FIELDS:
+                return False, f"Unsupported filter field '{token}'"
+            if index + 2 >= len(tokens) or tokens[index + 1] not in ALLOWED_FILTER_OPERATORS:
+                return False, "Expected a supported comparison operator and value"
+            value = tokens[index + 2]
+            if value in {"(", ")", "&&", "||"}:
+                return False, "Expected a comparison value"
+            index += 3
+            expecting_clause = False
+            continue
+        if token in {"&&", "||"}:
+            expecting_clause = True
+            index += 1
+            continue
+        if token == ")" and paren_depth:
+            paren_depth -= 1
+            index += 1
+            continue
+        return False, "Expected &&, ||, or closing parenthesis"
+
+    if expecting_clause or paren_depth:
+        return False, "Incomplete filter expression"
     return True, None
+
+
+PCAP_MAGIC_NUMBERS = {
+    b"\xa1\xb2\xc3\xd4", b"\xd4\xc3\xb2\xa1",  # microsecond PCAP
+    b"\xa1\xb2\x3c\x4d", b"\x4d\x3c\xb2\xa1",  # nanosecond PCAP
+    b"\x0a\x0d\x0d\x0a",  # PCAPNG section header
+}
+
+
+def validate_capture_file(path: Path) -> None:
+    """Reject renamed or empty files before they enter the analysis pipeline."""
+    with path.open("rb") as capture_file:
+        magic = capture_file.read(4)
+    if magic not in PCAP_MAGIC_NUMBERS:
+        raise HTTPException(status_code=400, detail="File does not have a valid PCAP or PCAPNG header")
 
 
 def safe_capture_id(capture_id: str) -> str:
