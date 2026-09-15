@@ -93,6 +93,16 @@ async def global_search(body: SearchRequest, db: AsyncSession = Depends(get_db))
     ]
     results["flags"] = {"count": len(flag_matches), "items": flag_matches}
 
+    for category, values in {
+        "dns": summary.get("dns_queries", []),
+        "files": summary.get("files", []),
+        "iocs": summary.get("iocs", []),
+        "streams": summary.get("streams", []),
+        "findings": summary.get("findings", []),
+    }.items():
+        matches = [item for item in values if query.lower() in str(item).lower()]
+        results[category] = {"count": len(matches), "items": matches[:body.limit]}
+
     return results
 
 

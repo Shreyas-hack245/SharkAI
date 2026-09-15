@@ -262,9 +262,12 @@ class PacketAnalyzer:
     def search_payloads(self, pcap_path: str, query: str, limit: int = 100) -> list[dict]:
         if not self._available:
             return []
+        # The query is data, not a display-filter fragment. Escape it before it
+        # is embedded in tshark's quoted string literal.
+        safe_query = query.replace("\\", "\\\\").replace('"', '\\"')
         cmd = [
             self.tshark_path, "-r", pcap_path,
-            "-Y", f'frame contains "{query}"',
+            "-Y", f'frame contains "{safe_query}"',
             "-T", "fields",
             "-e", "frame.number",
             "-e", "_ws.col.Protocol",

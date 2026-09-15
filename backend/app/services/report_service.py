@@ -1,6 +1,7 @@
 """Evidence-first investigation report generation."""
 
 import json
+from html import escape
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
@@ -80,7 +81,7 @@ class ReportService:
                 continue
             else:
                 style = styles["BodyText"]
-            story.append(Paragraph(line.replace("&", "&amp;"), style))
+            story.append(Paragraph(escape(line), style))
         document.build(story)
         return output.getvalue()
 
