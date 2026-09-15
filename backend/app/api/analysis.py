@@ -1,6 +1,7 @@
 """Packet and stream analysis API."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,7 @@ from app.models.schemas import (
     StreamContent, StreamSummary,
 )
 from app.services.analysis_service import analysis_service
+from app.services.report_service import report_service
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
@@ -181,3 +183,30 @@ async def get_findings(capture_id: str):
     if not summary:
         raise HTTPException(404, "Analysis not complete")
     return {"findings": summary.get("findings", [])}
+
+
+@router.get("/captures/{capture_id}/report")
+async def generate_report(
+    capture_id: str,
+    format: str = Query("markdown", pattern="^(markdown|json|pdf)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    safe_capture_id(capture_id)
+    result = await db.execute(select(Capture).where(Capture.id == capture_id))
+    capture = result.scalar_one_or_none()
+    if not capture:
+        raise HTTPException(404, "Capture not found")
+    summary = analysis_service.get_cached_summary(capture_id)
+    if not summary:
+        raise HTTPException(400, "Analysis is not complete")
+
+    timeline = analysis_service.build_timeline(capture_id)
+    if format == "json":
+        return Response(report_service.build_json(capture, summary, timeline), media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="sharkai-{capture_id}.json"'})
+    markdown = report_service.build_document(capture, summary, timeline)
+    if format == "pdf":
+        return Response(report_service.build_pdf(markdown), media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="sharkai-{capture_id}.pdf"'})
+    return PlainTextResponse(markdown, media_type="text/markdown",
+                             headers={"Content-Disposition": f'attachment; filename="sharkai-{capture_id}.md"'})

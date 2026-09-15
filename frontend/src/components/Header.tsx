@@ -1,4 +1,4 @@
-import { Flag, Search, Settings, Upload } from 'lucide-react';
+import { Download, Flag, Search } from 'lucide-react';
 import type { CaptureSummary } from '../types';
 
 interface HeaderProps {
@@ -42,6 +42,12 @@ export default function Header({ capture, mode, setMode, ctfMode, setCtfMode, on
               onChange={(e) => onSearch(e.target.value)}
             />
           </div>
+        )}
+
+        {capture?.status === 'complete' && (
+          <a href={`/api/captures/${capture.id}/report?format=pdf`} className="btn-secondary text-[10px] flex items-center gap-1" title="Download investigation report">
+            <Download className="w-3.5 h-3.5" /> Report
+          </a>
         )}
 
         <button

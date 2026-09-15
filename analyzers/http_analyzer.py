@@ -16,6 +16,7 @@ class HttpAnalyzer:
             "-Y", "http.request",
             "-T", "fields",
             "-e", "frame.number",
+            "-e", "frame.time_epoch",
             "-e", "tcp.stream",
             "-e", "http.request.method",
             "-e", "http.request.uri",
@@ -33,16 +34,17 @@ class HttpAnalyzer:
             if not line.strip():
                 continue
             parts = line.split("\t")
-            if len(parts) < 4:
+            if len(parts) < 5:
                 continue
             requests.append({
                 "packet_number": int(parts[0]) if parts[0].isdigit() else 0,
-                "stream_id": int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None,
-                "method": parts[2] if len(parts) > 2 else "",
-                "uri": parts[3] if len(parts) > 3 else "",
-                "host": parts[4] if len(parts) > 4 else "",
-                "user_agent": parts[5] if len(parts) > 5 else "",
-                "content_type": parts[6] if len(parts) > 6 else "",
+                "timestamp": float(parts[1]) if len(parts) > 1 and parts[1] else 0.0,
+                "stream_id": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None,
+                "method": parts[3] if len(parts) > 3 else "",
+                "uri": parts[4] if len(parts) > 4 else "",
+                "host": parts[5] if len(parts) > 5 else "",
+                "user_agent": parts[6] if len(parts) > 6 else "",
+                "content_type": parts[7] if len(parts) > 7 else "",
                 "post_data": "",
             })
         return requests

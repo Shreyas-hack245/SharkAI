@@ -351,6 +351,7 @@ class AnalysisService:
 
         for req in summary.get("http_requests", []):
             events.append({
+                "timestamp": req.get("timestamp", 0),
                 "event_type": "http_request",
                 "description": f"{req.get('method', '')} {req.get('uri', '')}",
                 "packet_number": req.get("packet_number"),
@@ -360,6 +361,7 @@ class AnalysisService:
 
         for dns in summary.get("dns_queries", []):
             events.append({
+                "timestamp": dns.get("timestamp", 0),
                 "event_type": "dns_query",
                 "description": f"DNS query: {dns.get('query_name', '')}",
                 "packet_number": dns.get("packet_number"),
@@ -373,7 +375,7 @@ class AnalysisService:
                 "severity": finding.get("severity", "info"),
             })
 
-        return events
+        return sorted(events, key=lambda event: (event.get("timestamp", 0) == 0, event.get("timestamp", 0)))
 
     def build_graph(self, capture_id: str) -> dict:
         summary = self._cache.get(capture_id, {})

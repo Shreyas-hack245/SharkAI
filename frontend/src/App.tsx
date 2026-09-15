@@ -9,6 +9,7 @@ import AIAnalyst from './components/AIAnalyst';
 import CommandPalette from './components/CommandPalette';
 import Dashboard from './components/Dashboard';
 import DnsView from './components/DnsView';
+import EvidenceList from './components/EvidenceList';
 import FlagHunter from './components/FlagHunter';
 import Header from './components/Header';
 import HexViewer from './components/HexViewer';
@@ -153,11 +154,13 @@ export default function App() {
             )}
             {activeView === 'http' && <HttpView captureId={capture.id} />}
             {activeView === 'dns' && <DnsView captureId={capture.id} />}
+            {activeView === 'files' && <EvidenceList captureId={capture.id} kind="files" />}
+            {activeView === 'credentials' && <EvidenceList captureId={capture.id} kind="credentials" />}
             {activeView === 'flags' && <FlagHunter captureId={capture.id} />}
             {activeView === 'timeline' && <Timeline captureId={capture.id} />}
             {activeView === 'graph' && <NetworkGraph captureId={capture.id} />}
             {activeView === 'iocs' && <Dashboard capture={capture} view="iocs" />}
-            {!['overview', 'packets', 'streams', 'http', 'dns', 'flags', 'timeline', 'graph', 'iocs'].includes(activeView) && (
+            {!['overview', 'packets', 'streams', 'http', 'dns', 'files', 'credentials', 'flags', 'timeline', 'graph', 'iocs'].includes(activeView) && (
               <Overview capture={capture} onViewChange={setActiveView} />
             )}
 

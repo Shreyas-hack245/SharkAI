@@ -18,6 +18,7 @@ class DnsAnalyzer:
             "-Y", "dns.flags.response == 0",
             "-T", "fields",
             "-e", "frame.number",
+            "-e", "frame.time_epoch",
             "-e", "ip.src",
             "-e", "dns.qry.name",
             "-e", "dns.qry.type",
@@ -34,9 +35,10 @@ class DnsAnalyzer:
             parts = line.split("\t")
             queries.append({
                 "packet_number": int(parts[0]) if parts[0].isdigit() else 0,
-                "client": parts[1] if len(parts) > 1 else "",
-                "query_name": parts[2] if len(parts) > 2 else "",
-                "query_type": parts[3] if len(parts) > 3 else "",
+                "timestamp": float(parts[1]) if len(parts) > 1 and parts[1] else 0.0,
+                "client": parts[2] if len(parts) > 2 else "",
+                "query_name": parts[3] if len(parts) > 3 else "",
+                "query_type": parts[4] if len(parts) > 4 else "",
             })
         return queries
 
