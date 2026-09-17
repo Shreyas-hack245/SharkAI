@@ -79,23 +79,23 @@ export default function FlagHunter({ captureId }: FlagHunterProps) {
                 <span className="text-shark-accent font-bold font-mono text-sm">{f.flag as string}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-[11px] text-shark-400">
-                <div>Protocol: <span className="text-shark-200">{f.protocol as string}</span></div>
-                <div>Confidence: <span className="text-shark-accent">{((f.confidence as number) * 100).toFixed(0)}%</span></div>
-                {f.stream_id !== undefined && (
-                  <div>TCP Stream: <span className="text-shark-200">#{f.stream_id as number}</span></div>
+                <div>Protocol: <span className="text-shark-200">{typeof f.protocol === 'string' ? f.protocol : 'Unknown'}</span></div>
+                <div>Confidence: <span className="text-shark-accent">{typeof f.confidence === 'number' ? `${(f.confidence * 100).toFixed(0)}%` : 'Unknown'}</span></div>
+                {typeof f.stream_id === 'number' && (
+                  <div>TCP Stream: <span className="text-shark-200">#{f.stream_id}</span></div>
                 )}
-                {f.packet_numbers && (
-                  <div>Packets: <span className="text-shark-200">{(f.packet_numbers as number[]).join(', ')}</span></div>
+                {Array.isArray(f.packet_numbers) && f.packet_numbers.length > 0 && (
+                  <div>Packets: <span className="text-shark-200">{f.packet_numbers.join(', ')}</span></div>
                 )}
               </div>
-              {f.decode_chain && (f.decode_chain as string[]).length > 1 && (
+              {Array.isArray(f.decode_chain) && f.decode_chain.length > 1 && (
                 <div className="mt-2 text-[10px] text-shark-400">
-                  Decode: {(f.decode_chain as string[]).join(' → ')}
+                  Decode: {f.decode_chain.join(' → ')}
                 </div>
               )}
-              {f.context && (
+              {typeof f.context === 'string' && (
                 <pre className="mt-2 p-2 bg-shark-800 rounded text-[10px] font-mono text-shark-300 overflow-x-auto">
-                  {f.context as string}
+                  {f.context}
                 </pre>
               )}
             </div>

@@ -36,10 +36,10 @@ export default function Timeline({ captureId }: TimelineProps) {
                 ${e.severity === 'high' ? 'bg-shark-danger' : e.severity === 'medium' ? 'bg-shark-warning' : 'bg-shark-accent'}`}
               />
               <div className="text-xs">
-                <span className="text-[10px] font-mono text-shark-400 uppercase">{e.event_type as string}</span>
-                <p className="text-shark-200 mt-0.5">{e.description as string}</p>
-                {e.packet_number && (
-                  <span className="text-[10px] text-shark-500">Packet #{e.packet_number as number}</span>
+                <span className="text-[10px] font-mono text-shark-400 uppercase">{typeof e.event_type === 'string' ? e.event_type : 'event'}</span>
+                <p className="text-shark-200 mt-0.5">{typeof e.description === 'string' ? e.description : ''}</p>
+                {typeof e.packet_number === 'number' && (
+                  <span className="text-[10px] text-shark-500">Packet #{e.packet_number}</span>
                 )}
               </div>
             </div>
