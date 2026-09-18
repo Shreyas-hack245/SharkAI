@@ -33,12 +33,13 @@ class AnalysisService:
         settings = get_settings()
         self.settings = settings
         self.packet_analyzer = PacketAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
-        self.stream_analyzer = StreamAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
-        self.http_analyzer = HttpAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
-        self.dns_analyzer = DnsAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
-        self.flag_analyzer = FlagAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
-        self.ioc_analyzer = IocAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
-        self.file_analyzer = FileAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
+        tshark_path = self.packet_analyzer.tshark_path
+        self.stream_analyzer = StreamAnalyzer(tshark_path, settings.analysis_timeout_seconds)
+        self.http_analyzer = HttpAnalyzer(tshark_path, settings.analysis_timeout_seconds)
+        self.dns_analyzer = DnsAnalyzer(tshark_path, settings.analysis_timeout_seconds)
+        self.flag_analyzer = FlagAnalyzer(tshark_path, settings.analysis_timeout_seconds)
+        self.ioc_analyzer = IocAnalyzer(tshark_path, settings.analysis_timeout_seconds)
+        self.file_analyzer = FileAnalyzer(tshark_path, settings.analysis_timeout_seconds)
 
         self._cache: dict[str, dict] = {}
 

@@ -10,9 +10,9 @@ from typing import Any, Optional
 DEFAULT_PATTERNS = [
     (r"flag\{[^}]+\}", "flag{...}", 0.99),
     (r"FLAG\{[^}]+\}", "FLAG{...}", 0.99),
+    (r"picoCTF\{[^}]+\}", "picoCTF{...}", 0.99),
     (r"CTF\{[^}]+\}", "CTF{...}", 0.99),
     (r"THM\{[^}]+\}", "THM{...}", 0.99),
-    (r"picoCTF\{[^}]+\}", "picoCTF{...}", 0.99),
     (r"HTB\{[^}]+\}", "HTB{...}", 0.99),
     (r"cyber\{[^}]+\}", "cyber{...}", 0.95),
 ]
