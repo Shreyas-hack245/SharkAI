@@ -47,25 +47,32 @@ class OpenAICompatibleProvider(AIProvider):
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
-        async with httpx.AsyncClient(timeout=120) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            if response.status_code != 200:
-                return {
-                    "error": f"AI API error ({response.status_code}): {response.text[:500]}",
-                    "content": None,
-                }
-            data = response.json()
-            choice = data.get("choices", [{}])[0]
-            message = choice.get("message", {})
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+        except httpx.RequestError as exc:
             return {
-                "content": message.get("content"),
-                "tool_calls": message.get("tool_calls"),
-                "finish_reason": choice.get("finish_reason"),
+                "error": f"AI provider unavailable at {self.base_url}: {exc}",
+                "content": None,
             }
+
+        if response.status_code != 200:
+            return {
+                "error": f"AI API error ({response.status_code}): {response.text[:500]}",
+                "content": None,
+            }
+        data = response.json()
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        return {
+            "content": message.get("content"),
+            "tool_calls": message.get("tool_calls"),
+            "finish_reason": choice.get("finish_reason"),
+        }
 
 
 class OllamaProvider(OpenAICompatibleProvider):
