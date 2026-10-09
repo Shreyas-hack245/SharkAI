@@ -12,6 +12,43 @@ class TsharkError(Exception):
     pass
 
 
+# All known Windows installation paths for tshark
+_WINDOWS_TSHARK_CANDIDATES = [
+    r"C:\Program Files\Wireshark\tshark.exe",
+    r"C:\Program Files (x86)\Wireshark\tshark.exe",
+]
+
+
+def _find_tshark(hint: str = "tshark") -> Optional[str]:
+    """Return the absolute path to tshark, or None if not found."""
+    # 1. Try the hint (or system PATH)
+    found = shutil.which(hint)
+    if found:
+        return found
+    # 2. Try hint as a literal path
+    if Path(hint).is_file():
+        return hint
+    # 3. Scan known Windows install locations
+    for candidate in _WINDOWS_TSHARK_CANDIDATES:
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    try:
+        return int(val) if val not in (None, "") else default
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val) if val not in (None, "") else default
+    except (ValueError, TypeError):
+        return default
+
+
 class PacketAnalyzer:
     """Primary packet analysis via tshark."""
 
@@ -36,31 +73,33 @@ class PacketAnalyzer:
     ]
 
     def __init__(self, tshark_path: str = "tshark", timeout: int = 600):
-        self.tshark_path = tshark_path
         self.timeout = timeout
-        self._available = self._check_available()
-
-    def _check_available(self) -> bool:
-        path = shutil.which(self.tshark_path)
-        if path:
-            self.tshark_path = path
-            return True
-        # Common Windows Wireshark install paths
-        for candidate in [
-            r"C:\Program Files\Wireshark\tshark.exe",
-            r"C:\Program Files (x86)\Wireshark\tshark.exe",
-        ]:
-            if Path(candidate).exists():
-                self.tshark_path = candidate
-                return True
-        return False
+        resolved = _find_tshark(tshark_path)
+        if resolved:
+            self.tshark_path = resolved
+            self._available = True
+        else:
+            self.tshark_path = tshark_path
+            self._available = False
 
     @property
     def available(self) -> bool:
+        # Re-probe on every call so that installing tshark while the server
+        # is running is picked up without a restart.
+        if not self._available:
+            resolved = _find_tshark(self.tshark_path)
+            if resolved:
+                self.tshark_path = resolved
+                self._available = True
         return self._available
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
     def _run(self, args: list[str], pcap_path: str) -> str:
-        if not self._available:
+        """Run tshark in JSON mode and return raw stdout."""
+        if not self.available:
             raise TsharkError(
                 "tshark not found. Install Wireshark: https://www.wireshark.org/download.html"
             )
@@ -73,17 +112,20 @@ class PacketAnalyzer:
                 timeout=self.timeout,
                 check=False,
             )
-        except subprocess.TimeoutExpired as e:
-            raise TsharkError(f"tshark timed out after {self.timeout}s") from e
+        except subprocess.TimeoutExpired as exc:
+            raise TsharkError(f"tshark timed out after {self.timeout}s") from exc
 
         if result.returncode != 0:
-            err = result.stderr.strip() or result.stdout.strip()
+            err = (result.stderr or result.stdout).strip()
             raise TsharkError(f"tshark error: {err}")
 
         return result.stdout
 
-    def _run_fields(self, pcap_path: str, display_filter: str = "") -> list[dict[str, Any]]:
-        if not self._available:
+    def _run_fields(
+        self, pcap_path: str, display_filter: str = ""
+    ) -> list[dict[str, Any]]:
+        """Run tshark in tab-separated fields mode."""
+        if not self.available:
             raise TsharkError("tshark not available")
 
         cmd = [
@@ -104,8 +146,8 @@ class PacketAnalyzer:
                 cmd, capture_output=True, text=True,
                 timeout=self.timeout, check=False,
             )
-        except subprocess.TimeoutExpired as e:
-            raise TsharkError(f"tshark timed out after {self.timeout}s") from e
+        except subprocess.TimeoutExpired as exc:
+            raise TsharkError(f"tshark timed out after {self.timeout}s") from exc
 
         if result.returncode != 0:
             raise TsharkError(f"tshark fields error: {result.stderr.strip()}")
@@ -113,28 +155,39 @@ class PacketAnalyzer:
         return self._parse_tsv(result.stdout)
 
     def _parse_tsv(self, output: str) -> list[dict[str, Any]]:
+        """Parse tshark tab-separated output with -E quote=d quoting."""
         lines = output.strip().split("\n")
         if len(lines) < 2:
             return []
 
-        headers = lines[0].split("\t")
+        # Strip surrounding double-quotes added by -E quote=d
+        headers = [h.strip().strip('"') for h in lines[0].split("\t")]
         packets = []
         for line in lines[1:]:
             if not line.strip():
                 continue
-            values = line.split("\t")
+            values = [v.strip().strip('"') for v in line.split("\t")]
             row = dict(zip(headers, values))
             packets.append(row)
         return packets
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def get_packet_count(self, pcap_path: str) -> int:
-        if not self._available:
+        if not self.available:
             return 0
         cmd = [self.tshark_path, "-r", pcap_path, "-T", "fields", "-e", "frame.number"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=self.timeout
+            )
+        except Exception:
+            return 0
         if result.returncode != 0:
             return 0
-        return len([l for l in result.stdout.strip().split("\n") if l.strip()])
+        return len([ln for ln in result.stdout.strip().split("\n") if ln.strip()])
 
     def extract_packets(
         self,
@@ -151,22 +204,32 @@ class PacketAnalyzer:
         return [self._normalize_packet(r) for r in rows]
 
     def _normalize_packet(self, row: dict[str, Any]) -> dict[str, Any]:
-        src = row.get("_ws.col.Source") or row.get("ip.src") or row.get("ipv6.src") or ""
-        dst = row.get("_ws.col.Destination") or row.get("ip.dst") or row.get("ipv6.dst") or ""
+        src = (
+            row.get("_ws.col.Source")
+            or row.get("ip.src")
+            or row.get("ipv6.src")
+            or ""
+        )
+        dst = (
+            row.get("_ws.col.Destination")
+            or row.get("ip.dst")
+            or row.get("ipv6.dst")
+            or ""
+        )
         protocol = row.get("_ws.col.Protocol") or row.get("frame.protocols", "").split(":")[-1]
-        stream = row.get("tcp.stream", "")
+        stream_raw = row.get("tcp.stream", "")
         try:
-            stream_int = int(stream) if stream else None
-        except ValueError:
+            stream_int: Optional[int] = int(stream_raw) if stream_raw else None
+        except (ValueError, TypeError):
             stream_int = None
 
         return {
-            "frame_number": int(row.get("frame.number", 0)),
-            "timestamp": float(row.get("frame.time_epoch", 0)),
+            "frame_number": _safe_int(row.get("frame.number")),
+            "timestamp": _safe_float(row.get("frame.time_epoch")),
             "src": src,
             "dst": dst,
             "protocol": protocol.upper() if protocol else "UNKNOWN",
-            "length": int(row.get("frame.len", 0)),
+            "length": _safe_int(row.get("frame.len")),
             "info": row.get("_ws.col.Info", ""),
             "stream": stream_int,
             "severity": "info",
@@ -174,11 +237,11 @@ class PacketAnalyzer:
         }
 
     def get_packet_detail(self, pcap_path: str, frame_number: int) -> dict[str, Any]:
-        output = self._run(
-            ["-Y", f"frame.number=={frame_number}"],
-            pcap_path,
-        )
-        packets = json.loads(output) if output.strip() else []
+        output = self._run(["-Y", f"frame.number=={frame_number}"], pcap_path)
+        try:
+            packets = json.loads(output) if output.strip() else []
+        except json.JSONDecodeError:
+            packets = []
         if not packets:
             raise TsharkError(f"Packet {frame_number} not found")
 
@@ -188,8 +251,11 @@ class PacketAnalyzer:
 
         return {
             "frame_number": frame_number,
-            "timestamp": float(
-                pkt.get("_source", {}).get("layers", {}).get("frame", {}).get("frame.time_epoch", ["0"])[0]
+            "timestamp": _safe_float(
+                pkt.get("_source", {})
+                .get("layers", {})
+                .get("frame", {})
+                .get("frame.time_epoch", ["0"])[0]
             ),
             "layers": layers,
             "hex_dump": hex_dump,
@@ -214,7 +280,7 @@ class PacketAnalyzer:
         return result
 
     def _get_hex_dump(self, pcap_path: str, frame_number: int) -> tuple[str, str]:
-        if not self._available:
+        if not self.available:
             return "", ""
 
         cmd = [
@@ -222,23 +288,25 @@ class PacketAnalyzer:
             "-Y", f"frame.number=={frame_number}",
             "-x",
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        except Exception:
+            return "", ""
         if result.returncode != 0:
             return "", ""
 
-        hex_lines = []
-        ascii_lines = []
+        hex_lines: list[str] = []
         for line in result.stdout.split("\n"):
             if re.match(r"^\s*[0-9a-f]{4,8}\s", line):
                 hex_lines.append(line)
 
-        return "\n".join(hex_lines), "\n".join(ascii_lines)
+        return "\n".join(hex_lines), ""
 
     def get_protocol_stats(self, pcap_path: str) -> dict[str, int]:
         rows = self._run_fields(pcap_path)
         stats: dict[str, int] = {}
         for row in rows:
-            proto = row.get("_ws.col.Protocol", "Unknown")
+            proto = row.get("_ws.col.Protocol") or "Unknown"
             stats[proto] = stats.get(proto, 0) + 1
         return stats
 
@@ -255,15 +323,16 @@ class PacketAnalyzer:
                 dst_counts[dst] = dst_counts.get(dst, 0) + 1
 
         def top_n(d: dict[str, int]) -> list[dict]:
-            return [{"ip": k, "count": v} for k, v in sorted(d.items(), key=lambda x: -x[1])[:limit]]
+            return [
+                {"ip": k, "count": v}
+                for k, v in sorted(d.items(), key=lambda x: -x[1])[:limit]
+            ]
 
         return {"sources": top_n(src_counts), "destinations": top_n(dst_counts)}
 
     def search_payloads(self, pcap_path: str, query: str, limit: int = 100) -> list[dict]:
-        if not self._available:
+        if not self.available:
             return []
-        # The query is data, not a display-filter fragment. Escape it before it
-        # is embedded in tshark's quoted string literal.
         safe_query = query.replace("\\", "\\\\").replace('"', '\\"')
         cmd = [
             self.tshark_path, "-r", pcap_path,
@@ -273,21 +342,25 @@ class PacketAnalyzer:
             "-e", "_ws.col.Protocol",
             "-e", "_ws.col.Info",
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=self.timeout
+            )
+        except Exception:
+            return []
         if result.returncode != 0:
             return []
 
-        matches = []
+        matches: list[dict] = []
         for line in result.stdout.strip().split("\n"):
             if not line.strip():
                 continue
             parts = line.split("\t")
-            if len(parts) >= 1:
-                matches.append({
-                    "frame_number": int(parts[0]) if parts[0].isdigit() else 0,
-                    "protocol": parts[1] if len(parts) > 1 else "",
-                    "info": parts[2] if len(parts) > 2 else "",
-                })
+            matches.append({
+                "frame_number": _safe_int(parts[0]),
+                "protocol": parts[1] if len(parts) > 1 else "",
+                "info": parts[2] if len(parts) > 2 else "",
+            })
             if len(matches) >= limit:
                 break
         return matches

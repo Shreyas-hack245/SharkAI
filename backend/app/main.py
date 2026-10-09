@@ -42,6 +42,7 @@ app.include_router(ai_router)
 @app.get("/api/health")
 async def health():
     from app.services.analysis_service import analysis_service
+    analysis_service._sync_tshark_path()
     return {
         "status": "ok",
         "service": "SharkAI",

@@ -33,6 +33,8 @@ class AnalysisService:
         settings = get_settings()
         self.settings = settings
         self.packet_analyzer = PacketAnalyzer(settings.tshark_path, settings.analysis_timeout_seconds)
+        # Sub-analyzers are initialised with whatever path is available now;
+        # _sync_tshark_path() propagates any later discoveries.
         tshark_path = self.packet_analyzer.tshark_path
         self.stream_analyzer = StreamAnalyzer(tshark_path, settings.analysis_timeout_seconds)
         self.http_analyzer = HttpAnalyzer(tshark_path, settings.analysis_timeout_seconds)
@@ -42,6 +44,24 @@ class AnalysisService:
         self.file_analyzer = FileAnalyzer(tshark_path, settings.analysis_timeout_seconds)
 
         self._cache: dict[str, dict] = {}
+
+    def _sync_tshark_path(self) -> None:
+        """Propagate the resolved tshark path to all sub-analyzers.
+
+        Called at the start of every analysis so that installing Wireshark
+        after the server starts is picked up without a restart.
+        """
+        _ = self.packet_analyzer.available  # triggers live re-probe
+        path = self.packet_analyzer.tshark_path
+        for analyzer in (
+            self.stream_analyzer,
+            self.http_analyzer,
+            self.dns_analyzer,
+            self.flag_analyzer,
+            self.ioc_analyzer,
+            self.file_analyzer,
+        ):
+            analyzer.tshark_path = path
 
     @property
     def tshark_available(self) -> bool:
@@ -72,6 +92,9 @@ class AnalysisService:
                 await progress_callback({"progress": pct, "message": msg, **counts})
 
         try:
+            # Re-probe for tshark on every analysis so that installing
+            # Wireshark after server startup is picked up automatically.
+            self._sync_tshark_path()
             if not self.tshark_available:
                 raise TsharkError(
                     "tshark not found. Install Wireshark from https://www.wireshark.org/download.html"
