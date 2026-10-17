@@ -1,0 +1,31 @@
+# Copy to config.toml. Every key can also be set with a SHARKAI_* environment variable
+# (e.g. SHARKAI_AI_MODEL), which takes precedence over this file.
+
+[server]
+host = "127.0.0.1"               # keep on loopback: SharkAI has no login
+port = 8000
+data_dir = "data"                # captures are stored under data/captures/<id>/
+# allowed_hosts = ["localhost", "127.0.0.1"]   # Host-header allowlist (DNS-rebinding guard)
+
+[limits]
+max_upload_mb = 100
+max_packets = 500000             # analysis stops here and says so
+max_stream_mb = 32               # per TCP direction
+
+[analysis]
+flag_prefixes = []               # extra CTF prefixes, e.g. ["mycorp", "bsides"]. Letters/digits/_ only.
+
+[ai]
+# provider = "none"  -> deterministic results only (the default)
+# provider = "openai"  -> any OpenAI-compatible server (OpenAI, LM Studio, llama.cpp, vLLM, LiteLLM, OpenRouter...)
+# provider = "ollama"  -> a local Ollama daemon
+provider = "none"
+# base_url = "https://api.openai.com/v1"      # openai default
+# base_url = "http://127.0.0.1:1234/v1"       # e.g. LM Studio
+# base_url = "http://127.0.0.1:11434"         # ollama default
+# model = "gpt-4o-mini"
+# api_key = ""                                # prefer the SHARKAI_AI_API_KEY env var
+timeout = 60
+temperature = 0.2
+max_evidence_chars = 16000       # hard cap on what is sent to the provider per question
+redact_secrets = true            # mask cleartext passwords/tokens in the evidence

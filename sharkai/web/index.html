@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SharkAI</title>
+<link rel="icon" href="/assets/fin.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to results</a>
+<header class="top">
+  <div class="brand">
+    <svg class="fin" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 27c8-1 12-6 13-22 4 8 9 13 13 15-6 0-9 3-12 7-4-3-9-4-14 0z"/></svg>
+    <span class="name">SharkAI</span>
+  </div>
+  <div id="current" class="current"></div>
+  <button id="ai-chip" class="chip ai-chip" type="button" title="Check AI provider connection"></button>
+</header>
+<div class="shell">
+  <aside class="side" aria-label="Captures">
+    <label id="drop" class="drop" for="file">
+      <strong>Add a capture</strong>
+      <span>Drop a .pcap, .pcapng or .cap here, or choose a file</span>
+      <input id="file" type="file" accept=".pcap,.pcapng,.cap">
+    </label>
+    <label class="field">Extra flag prefixes
+      <input id="prefixes" type="text" placeholder="e.g. mycorp, bsides" autocomplete="off" spellcheck="false">
+    </label>
+    <p id="upload-status" class="muted" role="status"></p>
+    <h2 class="side-h">Captures</h2>
+    <ul id="captures" class="captures"></ul>
+  </aside>
+  <main id="main" class="main" tabindex="-1">
+    <div id="empty" class="empty">
+      <h1>Read the traffic, then ask about it.</h1>
+      <p>Upload a capture to browse packets, TCP streams, HTTP, DNS, files and indicators. SharkAI hunts for CTF flags in plain text and common encodings. Questions are answered from structured evidence only; the raw capture never goes to an AI provider.</p>
+      <p class="muted">No capture to hand? Run <code>python scripts/make_sample.py</code> and upload <code>samples/demo-ctf.pcap</code>.</p>
+    </div>
+    <div id="workspace" hidden>
+      <div id="stats" class="stats"></div>
+      <nav id="tabs" class="tabs" role="tablist" aria-label="Analysis views"></nav>
+      <section id="panel" class="panel" role="tabpanel"></section>
+    </div>
+  </main>
+</div>
+<script src="/assets/app.js"></script>
+</body>
+</html>
