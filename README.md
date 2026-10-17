@@ -9,7 +9,7 @@ Ask questions about it, without the raw PCAP ever leaving your machine.
 
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) ![Tests](https://img.shields.io/badge/tests-123%20passing-brightgreen) ![Runs offline](https://img.shields.io/badge/runs-offline-informational) ![No build step](https://img.shields.io/badge/frontend-no%20build%20step-lightgrey)
 
-![SharkAI overview](docs/screenshots/overview.png)
+![SharkAI overview](Output/2.png)
 
 </div>
 
