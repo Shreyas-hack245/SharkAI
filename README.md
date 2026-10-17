@@ -37,16 +37,6 @@ Ask questions about it, without the raw PCAP ever leaving your machine.
 | **Ask** | Questions answered by an AI provider from structured evidence, with a deterministic fallback when no provider is available. |
 | **Reports** | Markdown, JSON and PDF generated from the stored analysis. |
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/streams.png" alt="Following a TCP stream"><br><sub><b>Streams</b>: reassembled in stream order, flags highlighted in place.</sub></td>
-<td width="50%"><img src="docs/screenshots/packets.png" alt="Packet list and layers"><br><sub><b>Packets</b>: filters, layer tree and hex dump.</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/flags.png" alt="Flag candidates"><br><sub><b>Flags</b>: where each one was found and how it was encoded.</sub></td>
-<td><img src="docs/screenshots/ask.png" alt="Ask panel"><br><sub><b>Ask</b>: AI answers, or deterministic results with the reason shown.</sub></td>
-</tr>
-</table>
 
 ## Quick start
 
